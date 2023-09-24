@@ -77,6 +77,7 @@ service / on ep0 {
     #
     # + return - Ok 
     resource function get lecturers() returns Lecturer[] {
+        return lecturersTable.toArray();
     }
     # 
     #
@@ -84,7 +85,30 @@ service / on ep0 {
     # + return - returns can be any of following types
     # http:Created (Created)
     # BadRequestErrorResponse (BadRequest)
-    resource function post lecturers(@http:Payload Lecturer payload) returns http:Created|BadRequestErrorResponse {
+    resource function post lecturers(@http:Payload Lecturer lecturer) returns http:Created|BadRequestErrorResponse {
+        //Validate lecturer information
+        if (!isValidLecturer(lecturer)) {
+            return <ValidationError>{
+                body: {
+                    'error: {
+                        code: "INVALID_DATA",
+                        message: "Invalid lecturer data"
+                    }
+                }
+            };
+        }
+
+        //Add lecturer to table after successfull validation
+        _= lecturersTable.add(lecturer);        
+
+        //Return successfull response
+        string lecturerUrl = string `/lecturers/${lecturer.staffNumber}`;
+        return <ResourceCreated>{
+            headers: {
+                location: lecturerUrl
+            }
+        };
+
     }
     # 
     #
@@ -93,6 +117,22 @@ service / on ep0 {
     # Lecturer (Ok)
     # BadRequestErrorResponse (BadRequest)
     resource function get lecturers/[string staffNumber]() returns Lecturer|BadRequestErrorResponse {
+
+        if (lecturersTable.hasKey(staffNumber)) {
+            Lecturer foundLecturer = lecturersTable.get(staffNumber);
+            return foundLecturer;
+        } else {
+            return <ValidationError>{
+                body: {
+                    'error: {
+                        code: "LECTURER_NOT_FOUND",
+                        message: "Lecturer not found"
+                    }
+                }
+            };
+        }
+
+        
     }
     # 
     #
@@ -101,7 +141,36 @@ service / on ep0 {
     # + return - returns can be any of following types
     # http:Ok (Ok)
     # BadRequestErrorResponse (BadRequest)
-    resource function put lecturers/[string staffNumber](@http:Payload Lecturer payload) returns http:Ok|BadRequestErrorResponse {
+    resource function put lecturers/[string staffNumber](@http:Payload Lecturer lecturer) returns http:Ok|BadRequestErrorResponse {
+
+        if (!lecturersTable.hasKey(staffNumber)) {
+            return <ValidationError>{
+                body: {
+                    'error: {
+                        code: "LECTURER_NOT_FOUND",
+                        message: "Lecturer not found"
+                    }
+                }
+            };
+        }
+
+        // Validate provided lecturer data
+        if (!isValidLecturer(lecturer)) {
+            return <ValidationError>{
+                body: {
+                    'error: {
+                        code: "INVALID_DATA",
+                        message: "Invalid lecturer data"
+                    }
+                }
+            };
+        }
+
+        lecturersTable.put(lecturer);
+        
+        return <ResourceUpdated>{};
+
+
     }
     # 
     #
@@ -110,12 +179,38 @@ service / on ep0 {
     # Lecturer (Ok)
     # BadRequestErrorResponse (BadRequest)
     resource function delete lecturers/[string staffNumber]() returns Lecturer|BadRequestErrorResponse {
+
+        if (lecturersTable.hasKey(staffNumber)) {
+            Lecturer removed = lecturersTable.remove(staffNumber);
+            return removed;
+        } else {
+            return <ValidationError>{
+                body: {
+                    'error: {
+                        code: "LECTURER_NOT_FOUND",
+                        message: "Lecturer not found"
+                    }
+                }
+            };
+        }
+
+
     }
     # 
     #
     # + officeNumber - parameter description 
     # + return - Ok 
     resource function get lecturers/office/[string officeNumber]() returns Lecturer[] {
+
+        Lecturer[] lecturersInOffice = [];
+        foreach var lecturer in lecturersTable {
+            if (lecturer.officeNumber == officeNumber) {
+                lecturersInOffice.push(lecturer);
+            }
+        }
+        return lecturersInOffice;
+
+
     }
     # 
     #
@@ -155,4 +250,27 @@ service / on ep0 {
     # BadRequestErrorResponse (BadRequest)
     resource function delete courses/[string courseCode]() returns Course|BadRequestErrorResponse {
     }
+    
+
 }
+function isValidLecturer(Lecturer lecturer)  returns boolean {
+    // Check if the staffNumber is unique
+    if(lecturersTable.hasKey(lecturer.staffNumber)){
+        return false;
+    }
+
+    // Check if all required fields are present and not empty
+    if(lecturer.staffNumber == "" || lecturer.staffName == "" || lecturer.courses.length() == 0 || lecturer.officeNumber == "" || lecturer.title == ""){
+        return false;
+    }
+
+    // Check if provided course codes for new lecturer exists in Course Table
+    foreach var course in lecturer.courses {
+        if(!courseTable.hasKey(course.courseCode)){
+            return false;
+        }
+    }
+
+    return true; 
+}
+
