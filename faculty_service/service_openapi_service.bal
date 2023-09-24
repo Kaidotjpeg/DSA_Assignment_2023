@@ -3,43 +3,6 @@
 
 import ballerina/http;
 
-# Represents an error
-public type Error record {
-    # Error code
-    string code;
-    # Error message
-    string message;
-};
-
-# Represents a lecturer
-public type Lecturer record {
-    # Staff Number (Unique identifier)
-    readonly string staffNumber;
-    # Office Number
-    string officeNumber;
-    # Staff Name
-    string staffName;
-    # Title
-    string title;
-    # List of Courses
-    Course[] courses;
-};
-
-# Represents a course
-public type Course record {
-    # Course Code (Unique identifier)
-    readonly string courseCode;
-    # Course Name
-    string courseName;
-    # NQF Level
-    string nqfLevel;
-};
-
-# Error response
-public type ErrorResponse record {
-    # Represents an error
-    Error 'error;
-};
 
 # Bad request response
 public type ValidationError record {|
@@ -216,6 +179,7 @@ service / on ep0 {
     #
     # + return - Ok 
     resource function get courses() returns Course[] {
+        return courseTable.toArray();
     }
     # 
     #
@@ -223,7 +187,26 @@ service / on ep0 {
     # + return - returns can be any of following types
     # http:Created (Created)
     # BadRequestErrorResponse (BadRequest)
-    resource function post courses(@http:Payload Course payload) returns http:Created|BadRequestErrorResponse {
+    resource function post courses(@http:Payload Course course) returns http:Created|BadRequestErrorResponse {
+        if (!isValidNewCourse(course)) {
+            return <ValidationError>{
+                body: {
+                    'error: {
+                        code: "INVALID_DATA",
+                        message: "Invalid course data"
+                    }
+                }
+            };
+        }
+
+        _= courseTable.add(course);
+        string courseUrl = string `/courses/${course.courseCode}`;
+        return <ResourceCreated>{
+            headers: {
+                location: courseUrl
+            }
+        };
+
     }
     # 
     #
@@ -232,6 +215,20 @@ service / on ep0 {
     # Course (Ok)
     # BadRequestErrorResponse (BadRequest)
     resource function get courses/[string courseCode]() returns Course|BadRequestErrorResponse {
+        if (courseTable.hasKey(courseCode)) {
+            Course requestedCourse = courseTable.get(courseCode);
+            return requestedCourse;
+        } else {
+            return <ValidationError>{
+                body: {
+                    'error: {
+                        code: "COURSE_NOT_FOUND",
+                        message: "Course not found"
+                    }
+                }
+            };
+        }
+
     }
     # 
     #
@@ -240,7 +237,32 @@ service / on ep0 {
     # + return - returns can be any of following types
     # http:Ok (Ok)
     # BadRequestErrorResponse (BadRequest)
-    resource function put courses/[string courseCode](@http:Payload Course payload) returns http:Ok|BadRequestErrorResponse {
+    resource function put courses/[string courseCode](@http:Payload Course course) returns http:Ok|BadRequestErrorResponse {
+        if (!courseTable.hasKey(courseCode)) {
+            return <ValidationError>{
+                body: {
+                    'error: {
+                        code: "COURSE_NOT_FOUND",
+                        message: "Course not found"
+                    }
+                }
+            };
+        }
+
+        if (!isValidUpdatedCourse(course)) {
+            return <ValidationError>{
+                body: {
+                    'error: {
+                        code: "INVALID_DATA",
+                        message: "Invalid course data"
+                    }
+                }
+            };
+        }
+
+        courseTable.put(course);
+        return <ResourceUpdated>{};
+
     }
     # 
     #
@@ -249,10 +271,23 @@ service / on ep0 {
     # Course (Ok)
     # BadRequestErrorResponse (BadRequest)
     resource function delete courses/[string courseCode]() returns Course|BadRequestErrorResponse {
+        if (courseTable.hasKey(courseCode)) {
+            Course removed = courseTable.remove(courseCode);
+            return removed;
+        } else {
+            return <ValidationError>{
+                body: {
+                    'error: {
+                        code: "COURSE_NOT_FOUND",
+                        message: "Course not found"
+                    }
+                }
+            };
+        }
+    }
+
     }
     
-
-}
 function isValidLecturer(Lecturer lecturer)  returns boolean {
     // Check if the staffNumber is unique
     if(lecturersTable.hasKey(lecturer.staffNumber)){
@@ -269,6 +304,23 @@ function isValidLecturer(Lecturer lecturer)  returns boolean {
         if(!courseTable.hasKey(course.courseCode)){
             return false;
         }
+    }
+
+    return true; 
+}
+function isValidNewCourse(Course course) returns boolean {
+    // Check if the courseCode is unique
+    if(courseTable.hasKey(course.courseCode)){
+        return false;
+    }
+
+    return true; 
+}
+
+function isValidUpdatedCourse(Course course) returns boolean {
+    // Check if all required fields are present and not empty
+    if(course.courseCode == "" || course.courseName == "" || course.nqfLevel == ""){
+        return false;
     }
 
     return true; 
