@@ -3,6 +3,73 @@
 
 import ballerina/http;
 
+# Represents an error
+public type Error record {
+    # Error code
+    string code;
+    # Error message
+    string message;
+};
+
+# Represents a lecturer
+public type Lecturer record {
+    # Staff Number (Unique identifier)
+    readonly string staffNumber;
+    # Office Number
+    string officeNumber;
+    # Staff Name
+    string staffName;
+    # Title
+    string title;
+    # List of Courses
+    Course[] courses;
+};
+
+# Represents a course
+public type Course record {
+    # Course Code (Unique identifier)
+    readonly string courseCode;
+    # Course Name
+    string courseName;
+    # NQF Level
+    string nqfLevel;
+};
+
+# Error response
+public type ErrorResponse record {
+    # Represents an error
+    Error 'error;
+};
+
+# Bad request response
+public type ValidationError record {|
+    *http:BadRequest;
+    # Error response.
+    ErrorResponse body;
+|};
+
+# Represents headers of created response
+public type LocationHeader record {|
+    # Location header. A link to the created resource.
+    string location;
+|};
+
+# Resource Created response
+public type ResourceCreated record {|
+    *http:Created;
+    # Location header representing a link to the created resource.
+    LocationHeader headers;
+|};
+
+# Resource updated response
+public type ResourceUpdated record {|
+    *http:Ok;
+|};
+
+# Tables for storing Lecturers & Courses
+table<Lecturer> key(staffNumber) lecturersTable = table [];
+table<Course> key(courseCode) courseTable = table [];
+
 listener http:Listener ep0 = new (8080, config = {host: "localhost"});
 
 service / on ep0 {
