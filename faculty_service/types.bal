@@ -19,7 +19,7 @@ public type Error record {
 # Represents a course
 public type Course record {
     # Course Code (Unique identifier)
-    string courseCode;
+    readonly string courseCode;
     # Course Name
     string courseName;
     # NQF Level
@@ -29,7 +29,7 @@ public type Course record {
 # Represents a lecturer
 public type Lecturer record {
     # Staff Number (Unique identifier)
-    string staffNumber;
+    readonly string staffNumber;
     # Office Number
     string officeNumber;
     # Staff Name
